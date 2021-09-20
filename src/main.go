@@ -4,11 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httputil"
 	"strconv"
 	"strings"
 	"time"
+	//"fmt"
+	"io/ioutil"
+	"errors"
 
-	"github.com/iegomez/mosquitto-go-auth/common"
+	"github.com/iegomez/mosquitto-go-auth/backends/topics"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 )
@@ -59,6 +63,23 @@ func getUserInfo(client *http.Client) (*UserInfo, error) {
 		return nil, err
 	}
 
+	defer resp.Body.Close()
+
+	log.Debug("res.StatusCode: ", resp.StatusCode)
+	if resp.StatusCode != 200 {
+		e, _ := ioutil.ReadAll(resp.Body)
+		log.Error(string(e))
+		return nil, errors.New(string(e))
+	}
+
+	b, err := httputil.DumpResponse(resp, true)
+	if err != nil {
+		log.Error(err)
+	}
+
+	// fmt.Println(string(b))
+	log.Debug(string(b))
+
 	err = json.NewDecoder(resp.Body).Decode(&info)
 	if err != nil {
 		return nil, err
@@ -75,14 +96,15 @@ func isTopicInList(topicList []string, searchedTopic string, username string, cl
 	replacer := strings.NewReplacer("%u", username, "%c", clientid)
 
 	for _, topicFromList := range topicList {
-		if common.TopicsMatch(replacer.Replace(topicFromList), searchedTopic) {
+		if topics.Match(replacer.Replace(topicFromList), searchedTopic) {
 			return true
 		}
 	}
 	return false
 }
 
-func checkAccessToTopic(topic string, acc int, cache *userState, username string, clientid string) bool {
+/// func checkAccessToTopic(topic string, acc int, cache *userState, username string, clientid string) bool {
+func checkAccessToTopic(topic string, acc int32, cache *userState, username string, clientid string) bool {
 	log.Debugf("Check for acl level %d", acc)
 
 	// check read access
@@ -233,10 +255,13 @@ func Init(authOpts map[string]string, logLevel log.Level) error {
 	return nil
 }
 
-func GetUser(username, password string) bool {
+/// func GetUser(username, password string) bool {
+func GetUser(username, password, clientid string) bool {
 	// Get token for the credentials and verify the user
 	log.Infof("Checking user with oauth plugin.")
-	if password == "" {
+	// if password == "" {
+	// if strings.HasPrefix(username, "Bearer ") {
+	if password == "OAUTH2 BEARER TOKEN" {
 		// If no password was delivered the username is interpreted as a token
 		return createUserWithToken(username)
 	}
@@ -279,7 +304,8 @@ func GetSuperuser(username string) bool {
 	return cache.superuser
 }
 
-func CheckAcl(username, topic, clientid string, acc int) bool {
+// func CheckAcl(username, topic, clientid string, acc int) bool {
+func CheckAcl(username, topic, clientid string, acc int32) bool {
 	// Function that checks if the user has the right to access a address
 	log.Debugf("Checking if user %s is allowed to access topic %s with access %d.", username, topic, acc)
 

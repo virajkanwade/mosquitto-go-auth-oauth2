@@ -316,10 +316,14 @@ func CheckAcl(username, topic, clientid string, acc int32) bool {
 	}
 
 	if !cacheIsValid(&cache) {
+		if !cache.token.Valid() {
+			log.Warningf("Token for user %s invalid. Try to refresh.", username)
+		}
+
 		info, err := getUserInfo(cache.client)
 
 		if err != nil {
-			log.Errorf("Failed to receive UserInfo for user %s: %s", username, err)
+			log.Errorf("Failed to receive UserInfo (CheckAcl) for user %s: %s", username, err)
 			return false
 		}
 
